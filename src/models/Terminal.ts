@@ -1,5 +1,5 @@
 export interface Terminal {
-  id: string;
+  id?: string;
   url: string;
   name?: string;
   type: "H" | "hik" | "D" | "dah";
