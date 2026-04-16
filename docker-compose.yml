@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  # =========================================
+  # PostgreSQL Database
+  # =========================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: elpass-local-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-elpass}
+      POSTGRES_USER: ${POSTGRES_USER:-elpass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - elpass-local
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-elpass}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # =========================================
+  # PostgREST — REST API over PostgreSQL
+  # =========================================
+  postgrest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: elpass-local-postgrest
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PGRST_DB_URI: postgres://${POSTGRES_USER:-elpass}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-elpass}
+      PGRST_DB_SCHEMAS: public
+      PGRST_DB_ANON_ROLE: web_anon
+      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET:?Set PGRST_JWT_SECRET in .env}
+      PGRST_DB_EXTRA_SEARCH_PATH: public
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - elpass-local
+
+  # =========================================
+  # PIC Server — photo upload & serving
+  # =========================================
+  picserver:
+    build:
+      context: ./picserver
+      dockerfile: Dockerfile
+    container_name: elpass-local-picserver
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    volumes:
+      - photos:/data
+    networks:
+      - elpass-local
+
+  # =========================================
+  # Backend API
+  # =========================================
+  terminals-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: elpass-syncer-local
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      LOG_LEVEL: info
+      ELPASS_API_URL: http://postgrest:3000
+      PIC_SERVER: http://picserver:9000/pic
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      postgrest:
+        condition: service_started
+      picserver:
+        condition: service_started
+    networks:
+      - elpass-local
+
+volumes:
+  pgdata:
+  photos:
+
+networks:
+  elpass-local:
+    driver: bridge

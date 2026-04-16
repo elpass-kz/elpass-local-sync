@@ -1,0 +1,18 @@
+version: '3.8'
+
+# Development override — run with:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+services:
+  terminals-api:
+    container_name: elpass-syncer-local-dev
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src:/app/src
+      - ./logs:/app/logs
+    command: npm run dev
+    environment:
+      NODE_ENV: development
+      LOG_LEVEL: debug
