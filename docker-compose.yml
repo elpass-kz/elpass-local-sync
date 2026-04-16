@@ -2,25 +2,6 @@ version: '3.8'
 
 services:
   # =========================================
-  # PostgREST — REST API over PostgreSQL
-  # =========================================
-  postgrest:
-    image: postgrest/postgrest:v12.2.3
-    container_name: elpass-local-postgrest
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      PGRST_DB_URI: postgres://${POSTGRES_USER:-elpass}:${POSTGRES_PASSWORD}@postgresql-db:5432/${POSTGRES_DB:-elpass}
-      PGRST_DB_SCHEMAS: public
-      PGRST_DB_ANON_ROLE: web_anon
-      PGRST_JWT_SECRET: ${PGRST_JWT_SECRET:?Set PGRST_JWT_SECRET in .env}
-      PGRST_DB_EXTRA_SEARCH_PATH: public
-    networks:
-      - nginx
-      - elpass-local
-
-  # =========================================
   # PIC Server — photo upload & serving
   # =========================================
   picserver:
@@ -57,12 +38,11 @@ services:
     volumes:
       - ./logs:/app/logs
     depends_on:
-      postgrest:
-        condition: service_started
       picserver:
         condition: service_started
     networks:
       - elpass-local
+      - nginx
 
 volumes:
   photos:
