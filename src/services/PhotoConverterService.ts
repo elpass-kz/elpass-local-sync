@@ -1,19 +1,13 @@
-import axios from "axios";
-import { config } from "../config/environment";
+import fs from "fs";
+import path from "path";
+
+const PHOTOS_DIR = process.env.PHOTOS_DIR || "/app/photos";
 
 export class PhotoConverterService {
   async fetchPhotoFromUrl(photoPath: string): Promise<Buffer> {
-    const timestamp = Date.now();
-    const url = `${config.picServer}/${photoPath}?ts=${timestamp}`;
-
-    console.log("Fetching photo from:", url);
-
-    const response = await axios.get(url, {
-      responseType: "arraybuffer",
-      timeout: 10000,
-    });
-
-    return Buffer.from(response.data);
+    const fullPath = path.join(PHOTOS_DIR, photoPath);
+    console.log("Reading photo from:", fullPath);
+    return fs.readFileSync(fullPath);
   }
 
   blobToBase64(buffer: Buffer): string {

@@ -2,22 +2,6 @@ version: '3.8'
 
 services:
   # =========================================
-  # PIC Server — photo upload & serving
-  # =========================================
-  picserver:
-    build:
-      context: ./picserver
-      dockerfile: Dockerfile
-    container_name: elpass-local-picserver
-    restart: unless-stopped
-    ports:
-      - "9000:9000"
-    volumes:
-      - photos:/data
-    networks:
-      - elpass-local
-
-  # =========================================
   # Backend API
   # =========================================
   terminals-api:
@@ -34,21 +18,21 @@ services:
       NODE_ENV: production
       LOG_LEVEL: info
       ELPASS_API_URL: http://postgrest:3000
-      PIC_SERVER: http://picserver:9000/pic
+      PHOTOS_DIR: /app/photos
     volumes:
       - ./logs:/app/logs
-    depends_on:
-      picserver:
-        condition: service_started
+      - elpass-photos:/app/photos
     networks:
-      - elpass-local
       - nginx
 
 volumes:
-  photos:
+  elpass-photos:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/elpass/dockers-onpremise/elpass-photos
 
 networks:
-  elpass-local:
-    driver: bridge
   nginx:
     external: true
