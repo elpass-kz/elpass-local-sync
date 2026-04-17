@@ -1,146 +1,48 @@
-import AxiosDigestAuth from "@mhoc/axios-digest-auth";
+import axios, { AxiosInstance } from "axios";
 import { Terminal } from "../models/Terminal";
 import { config } from "../config/environment";
-import { resolveTerminalRoute } from "./TerminalUrlResolver";
-
-type HttpMethod = "POST" | "PUT" | "DELETE" | "GET";
-
-/**
- * Extract routing headers and return clean headers for the terminal request.
- */
-function extractRoutingHeaders(headers: Record<string, string>): {
-  type: string;
-  module: string;
-  terminal: string;
-  cleanHeaders: Record<string, string>;
-} {
-  const type = headers["X-Type"] || "";
-  const module = headers["X-Module"] || "";
-  const terminal = headers["X-Terminal"] || "";
-
-  const cleanHeaders: Record<string, string> = {};
-  for (const [key, value] of Object.entries(headers)) {
-    if (!["X-Type", "X-Module", "X-Terminal", "X-Creds"].includes(key)) {
-      cleanHeaders[key] = value;
-    }
-  }
-
-  return { type, module, terminal, cleanHeaders };
-}
-
-/**
- * Get the base URL for a terminal from its local IP.
- */
-function getTerminalBaseUrl(terminal: Terminal): string {
-  const localIp = terminal.meta_?.local_ip;
-  if (!localIp) {
-    throw new Error(
-      `Terminal "${terminal.url}" (${terminal.name}) has no local_ip configured in meta_`,
-    );
-  }
-  // Use http:// for local network access
-  return localIp.startsWith("http") ? localIp : `http://${localIp}`;
-}
-
-/**
- * Decode base64 credentials to username:password.
- */
-function decodeCredentials(base64Creds: string): {
-  username: string;
-  password: string;
-} {
-  const decoded = Buffer.from(base64Creds, "base64").toString("utf-8");
-  const colonIdx = decoded.indexOf(":");
-  if (colonIdx === -1) {
-    throw new Error("Invalid credentials format");
-  }
-  return {
-    username: decoded.substring(0, colonIdx),
-    password: decoded.substring(colonIdx + 1),
-  };
-}
 
 export class TerminalClientService {
-  /**
-   * Execute a request to the terminal using Digest Auth and resolved vendor paths.
-   */
-  private async request(
-    callerMethod: HttpMethod,
-    _url: string,
-    dataOrParams: any,
-    headers: Record<string, string>,
-    terminal: Terminal,
-    base64Creds: string,
-    isGetRequest: boolean = false,
-  ): Promise<any> {
-    const { type, module, cleanHeaders } = extractRoutingHeaders(headers);
-    const route = resolveTerminalRoute(type, module, callerMethod);
-    const baseUrl = getTerminalBaseUrl(terminal);
-    const { username, password } = decodeCredentials(base64Creds);
-
-    const fullUrl = `${baseUrl}${route.path}`;
-
-    console.log("\n=== REQUEST TO TERMINAL (DIRECT) ===");
-    console.log("Terminal:", terminal.url, `(${terminal.meta_?.local_ip})`);
-    console.log("Route:", `${type}/${module} ${callerMethod} -> ${route.method} ${route.path}`);
-    console.log("URL:", fullUrl);
-    console.log("Username:", username);
-    console.log("====================================\n");
-
-    const digestAuth = new AxiosDigestAuth({
-      username,
-      password,
+  createClient(terminal: Terminal, base64Creds: string): AxiosInstance {
+    const client = axios.create({
+      baseURL: process.env.TERMINAL_PROXY_URL || "http://node_red:1880/terminals",
+      timeout: config.terminalRequestTimeout,
+      headers: {
+        "X-Creds": base64Creds,
+      },
+      validateStatus: (status) => status < 500,
     });
 
-    try {
-      const axiosConfig: any = {
-        url: fullUrl,
-        method: route.method,
-        headers: cleanHeaders,
-        timeout: config.terminalRequestTimeout,
-        validateStatus: (status: number) => status < 500,
-      };
+    client.interceptors.request.use((config) => {
+      console.log("\n=== REQUEST TO TERMINAL (via proxy) ===");
+      console.log("URL:", (config.baseURL || "") + (config.url || ""));
+      console.log("Method:", config.method?.toUpperCase());
+      console.log("Terminal:", terminal.url);
+      console.log("========================================\n");
+      return config;
+    });
 
-      if (isGetRequest) {
-        axiosConfig.params = dataOrParams;
-      } else {
-        axiosConfig.data = dataOrParams;
-      }
+    client.interceptors.response.use(
+      (response) => {
+        console.log("\n=== RESPONSE FROM TERMINAL ===");
+        console.log("Status:", response.status, response.statusText);
+        console.log("Data:", JSON.stringify(response.data, null, 2));
+        console.log("==============================\n");
+        return response;
+      },
+      (error) => {
+        console.log("\n=== ERROR FROM TERMINAL ===");
+        console.log("Message:", error.message);
+        if (error.response) {
+          console.log("Status:", error.response.status);
+          console.log("Data:", JSON.stringify(error.response.data, null, 2));
+        }
+        console.log("===========================\n");
+        return Promise.reject(error);
+      },
+    );
 
-      const response = await digestAuth.request(axiosConfig);
-
-      console.log("\n=== RESPONSE FROM TERMINAL ===");
-      console.log("Status:", response.status, response.statusText);
-      console.log("Data:", JSON.stringify(response.data, null, 2));
-      console.log("==============================\n");
-
-      if (response.status >= 400) {
-        const error: any = new Error(
-          `Terminal returned ${response.status}: ${response.statusText}`,
-        );
-        error.status = response.status;
-        error.statusText = response.statusText;
-        error.terminalResponse = response.data;
-        error.response = { data: response.data, status: response.status };
-        throw error;
-      }
-
-      return response.data;
-    } catch (err: any) {
-      if (err.terminalResponse !== undefined) {
-        // Already formatted error from above
-        throw err;
-      }
-
-      console.log("\n=== ERROR FROM TERMINAL ===");
-      console.log("Message:", err.message);
-      if (err.response) {
-        console.log("Status:", err.response.status);
-        console.log("Data:", JSON.stringify(err.response.data, null, 2));
-      }
-      console.log("===========================\n");
-      throw err;
-    }
+    return client;
   }
 
   async post(
@@ -150,7 +52,17 @@ export class TerminalClientService {
     terminal: Terminal,
     base64Creds: string,
   ): Promise<any> {
-    return this.request("POST", url, data, headers, terminal, base64Creds);
+    const client = this.createClient(terminal, base64Creds);
+    const response = await client.post(url, data, { headers });
+    if (response.status >= 400) {
+      const error: any = new Error(`Terminal returned ${response.status}: ${response.statusText}`);
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.terminalResponse = response.data;
+      error.response = { data: response.data, status: response.status };
+      throw error;
+    }
+    return response.data;
   }
 
   async put(
@@ -160,7 +72,17 @@ export class TerminalClientService {
     terminal: Terminal,
     base64Creds: string,
   ): Promise<any> {
-    return this.request("PUT", url, data, headers, terminal, base64Creds);
+    const client = this.createClient(terminal, base64Creds);
+    const response = await client.put(url, data, { headers });
+    if (response.status >= 400) {
+      const error: any = new Error(`Terminal returned ${response.status}: ${response.statusText}`);
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.terminalResponse = response.data;
+      error.response = { data: response.data, status: response.status };
+      throw error;
+    }
+    return response.data;
   }
 
   async delete(
@@ -170,7 +92,17 @@ export class TerminalClientService {
     terminal: Terminal,
     base64Creds: string,
   ): Promise<any> {
-    return this.request("DELETE", url, data, headers, terminal, base64Creds);
+    const client = this.createClient(terminal, base64Creds);
+    const response = await client.delete(url, { data, headers });
+    if (response.status >= 400) {
+      const error: any = new Error(`Terminal returned ${response.status}: ${response.statusText}`);
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.terminalResponse = response.data;
+      error.response = { data: response.data, status: response.status };
+      throw error;
+    }
+    return response.data;
   }
 
   async get(
@@ -180,6 +112,16 @@ export class TerminalClientService {
     terminal: Terminal,
     base64Creds: string,
   ): Promise<any> {
-    return this.request("GET", url, params, headers, terminal, base64Creds, true);
+    const client = this.createClient(terminal, base64Creds);
+    const response = await client.get(url, { params, headers });
+    if (response.status >= 400) {
+      const error: any = new Error(`Terminal returned ${response.status}: ${response.statusText}`);
+      error.status = response.status;
+      error.statusText = response.statusText;
+      error.terminalResponse = response.data;
+      error.response = { data: response.data, status: response.status };
+      throw error;
+    }
+    return response.data;
   }
 }
