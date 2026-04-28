@@ -70,7 +70,6 @@ export class CardSyncService {
     // Это нужно чтобы видеть терминалы для удаления при смене зоны
     const objectGuid = card.meta_?.objectGuid;
     let allTerminals = await this.terminalsService.getTerminals(
-      card.host,
       objectGuid,
       "all", // Получаем все терминалы объекта
       token,
@@ -211,7 +210,6 @@ export class CardSyncService {
     // Это нужно чтобы видеть терминалы для удаления при смене зоны
     const objectGuid = card.meta_?.objectGuid;
     let allTerminals = await this.terminalsService.getTerminals(
-      card.host,
       objectGuid,
       "all", // Получаем все терминалы объекта
       token,
@@ -898,7 +896,6 @@ export class CardSyncService {
 
     // Получаем все терминалы объекта
     const allTerminals = await this.terminalsService.getTerminals(
-      card.host,
       objectGuid,
       "all",
       token,
@@ -1161,7 +1158,6 @@ export class CardSyncService {
 
     // Получаем все терминалы объекта
     const allTerminals = await this.terminalsService.getTerminals(
-      card.host,
       objectGuid,
       "all",
       token,
@@ -1405,11 +1401,12 @@ export class CardSyncService {
     const terminalId = terminal.id || "";
 
     // 1. Получаем список card nos которые должны быть на терминале (RPC)
-    const expectedCardNos = await this.cardDatabaseService!.getCardNosForTerminal(
-      objectGuid,
-      terminalZone,
-      token,
-    );
+    const expectedCardNos =
+      await this.cardDatabaseService!.getCardNosForTerminal(
+        objectGuid,
+        terminalZone,
+        token,
+      );
 
     if (expectedCardNos.length === 0) {
       return {
@@ -1437,7 +1434,9 @@ export class CardSyncService {
       (no) => !existingCardNos.has(String(no)),
     );
 
-    console.log(`RestoreTerminal: expected=${expectedCardNos.length}, existing=${existingCardNos.size}, missing=${missingCardNos.length}`);
+    console.log(
+      `RestoreTerminal: expected=${expectedCardNos.length}, existing=${existingCardNos.size}, missing=${missingCardNos.length}`,
+    );
 
     if (missingCardNos.length === 0) {
       return {
@@ -1453,7 +1452,9 @@ export class CardSyncService {
       token,
     );
     const missingSet = new Set(missingCardNos.map(String));
-    const cardsForTerminal = allCards.filter((card) => missingSet.has(String(card.no)));
+    const cardsForTerminal = allCards.filter((card) =>
+      missingSet.has(String(card.no)),
+    );
 
     const results: Array<{
       cardUuid: string;
@@ -1465,7 +1466,9 @@ export class CardSyncService {
       skipped?: boolean;
     }> = [];
 
-    console.log(`RestoreTerminal: ${cardsForTerminal.length} cards to sync with terminal ${terminal.name} (${terminalId})`);
+    console.log(
+      `RestoreTerminal: ${cardsForTerminal.length} cards to sync with terminal ${terminal.name} (${terminalId})`,
+    );
 
     // 5. Загружаем карточки
     for (const card of cardsForTerminal) {

@@ -48,7 +48,6 @@ export class TerminalsService {
   }
 
   async getTerminals(
-    host?: string,
     objectGuid?: string,
     zones?: string | string[],
     token?: string,
@@ -61,10 +60,6 @@ export class TerminalsService {
       const params: any = {
         disabled: "neq.true",
       };
-
-      if (host) {
-        params.host = `eq.${host}`;
-      }
 
       if (objectGuid) {
         const normalizedZones = Array.isArray(zones)
@@ -92,7 +87,7 @@ export class TerminalsService {
       );
 
       console.log(
-        `TerminalsService: Fetched ${response.data.length} terminals${host ? ` for host=${host}` : ""}${objectGuid ? ` for objectGuid=${objectGuid}` : ""}${zones ? ` for zones=${Array.isArray(zones) ? zones.join(",") : zones}` : ""}`,
+        `TerminalsService: Fetched ${response.data.length} terminals${objectGuid ? ` for objectGuid=${objectGuid}` : ""}${zones ? ` for zones=${Array.isArray(zones) ? zones.join(",") : zones}` : ""}`,
       );
 
       return response.data;
