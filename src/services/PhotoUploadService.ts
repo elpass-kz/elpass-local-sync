@@ -51,6 +51,9 @@ export class PhotoUploadService {
     if (group) {
       return group;
     }
-    return host || "test";
+    if (host) {
+      return host.split(":")[0];
+    }
+    return "test";
   }
 }

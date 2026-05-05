@@ -4,7 +4,7 @@ import { config } from "./config/environment";
 const PORT = config.port;
 
 const server = app.listen(PORT, () => {
-  console.log(`🚀 10.03 Server running on port ${PORT}`);
+  console.log(`🚀 05.05 Server running on port ${PORT}`);
   console.log(`📡 Environment: ${config.node_env}`);
 });
 
