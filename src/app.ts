@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import { errorHandler } from "./middleware/errorHandler";
 import cardsRouter from "./routes/cards";
+import authRouter from "./routes/auth";
 
 const app = express();
 
@@ -38,6 +39,7 @@ app.get("/health", (_, res) => {
   });
 });
 
+app.use("/api/rpc", authRouter);
 app.use("/api/cards", cardsRouter);
 
 app.use((_, res) => {

@@ -166,7 +166,7 @@ router.patch("/:uuid", jwtAuth, upload.single("photo"), (req, res, next) => {
 
 /**
  * DELETE /api/cards/:uuid
- * Удаляет карточку по UUID (soft delete)
+ * Удаляет карточку по UUID (hard delete после синхронизации с терминалами)
  *
  * Headers:
  * - Authorization: Bearer <JWT token> (обязательно)

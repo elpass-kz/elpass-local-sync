@@ -74,8 +74,9 @@ export class CardsController {
         entranceNumber,
       } = req.body as CardUploadRequest;
 
-      // Get host from JWT token
+      // Get host and email from JWT token
       const host = req.user?.host;
+      const s_user = req.user?.email;
 
       if (!name || !no) {
         res.status(400).json({
@@ -171,6 +172,7 @@ export class CardsController {
           end_at: defaultEndAt,
           group,
           host,
+          s_user,
           meta_: {
             pin,
             passType,
@@ -573,7 +575,7 @@ export class CardsController {
   }
 
   /**
-   * Удаляет карточку по UUID (soft delete)
+   * Удаляет карточку по UUID (hard delete после синхронизации)
    * DELETE /api/cards/:uuid
    */
   async deleteCard(
@@ -601,8 +603,8 @@ export class CardsController {
         return;
       }
 
-      // Удаляем карточку (soft delete)
-      console.log(`CardsController: Deleting card from database`);
+      // Soft delete (устанавливаем deleted_at для синхронизации)
+      console.log(`CardsController: Soft deleting card for sync`);
       const deletedCard = await this.cardDatabaseService.deleteCardByUuid(
         uuid,
         token,
@@ -626,15 +628,10 @@ export class CardsController {
         token,
       );
 
-      // Сохраняем обновленный статус в БД
+      // Hard delete — удаляем карточку из БД полностью после синхронизации
       if (deletedCard.uuid) {
-        await this.cardDatabaseService.updateCardByUuid(
+        await this.cardDatabaseService.hardDeleteCardByUuid(
           deletedCard.uuid,
-          {
-            status: deletedCard.status,
-            isOK: deletedCard.isOK,
-            meta_: deletedCard.meta_,
-          },
           token,
         );
       }

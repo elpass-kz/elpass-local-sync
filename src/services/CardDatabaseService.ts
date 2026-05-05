@@ -210,6 +210,35 @@ export class CardDatabaseService {
   }
 
   /**
+   * Hard delete — удалить карточку из БД полностью
+   */
+  async hardDeleteCardByUuid(uuid: string, token?: string): Promise<void> {
+    if (!token) {
+      throw new Error("Token is required");
+    }
+
+    try {
+      console.log(`CardDatabaseService: Hard deleting card with uuid=${uuid}`);
+
+      await this.api.delete(
+        ENDPOINTS.CARDS,
+        token,
+        { uuid: `eq.${uuid}` },
+      );
+
+      console.log(`CardDatabaseService: Hard deleted card with uuid=${uuid}`);
+    } catch (error: any) {
+      console.error(
+        `CardDatabaseService: Failed to hard delete card with uuid=${uuid}`,
+        error,
+      );
+      const wrappedError: any = new Error(`Failed to hard delete card: ${error.message}`);
+      wrappedError.response = error.response;
+      throw wrappedError;
+    }
+  }
+
+  /**
    * Получить список карточек с фильтрами
    */
   async getCards(
